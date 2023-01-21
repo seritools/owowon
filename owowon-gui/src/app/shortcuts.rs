@@ -2,8 +2,8 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 
 pub const TOGGLE_MEASUREMENT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::M);
 
-pub const ZOOM_IN: Key = Key::PageUp;
-pub const ZOOM_OUT: Key = Key::PageDown;
+pub const ZOOM_IN: Key = Key::PageUp; // or mouse wheel up
+pub const ZOOM_OUT: Key = Key::PageDown; // or mouse wheel down
 
 pub const HORIZONTAL_OFFSET_LEFT: Key = Key::ArrowLeft;
 pub const HORIZONTAL_OFFSET_RIGHT: Key = Key::ArrowRight;

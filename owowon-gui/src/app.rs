@@ -242,35 +242,53 @@ impl OwowonApp {
             cmd.toggle_measurements(&self.osc_ui_state);
         }
 
-        let ch = if input.modifiers.alt {
+        let ch = if !head.channel_enabled(Channel::Ch2) {
+            Channel::Ch1
+        } else if !head.channel_enabled(Channel::Ch1) || input.modifiers.alt {
             Channel::Ch2
         } else {
             Channel::Ch1
         };
+
         let channel_info = head.channel(ch);
 
-        if input.key_pressed(ZOOM_IN) {
-            if input.modifiers.alt {
+        let try_zoom_out_vertical = || {
+            if let (_, _, Some(smaller), _) = selected_voltage(channel_info) {
+                cmd.set_vertical_scale(ch, smaller, channel_info.probe)
+            }
+        };
+        let try_zoom_in_vertical = || {
+            if let (_, _, _, Some(larger)) = selected_voltage(channel_info) {
+                cmd.set_vertical_scale(ch, larger, channel_info.probe)
+            }
+        };
+
+        if input.key_pressed(ZOOM_IN) || input.scroll_delta.y > 0.0 {
+            if input.modifiers.command {
+                try_zoom_out_vertical();
+            } else if input.modifiers.alt {
                 cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, true))
-            } else if input.modifiers.command {
-                if let (_, _, Some(smaller), _) = selected_voltage(channel_info) {
-                    cmd.set_vertical_scale(ch, smaller, channel_info.probe)
-                }
             } else if let (_, _, Some(smaller), _) = selected_time_base(head) {
                 cmd.set_time_scale(smaller);
             }
         }
 
-        if input.key_pressed(ZOOM_OUT) {
-            if input.modifiers.alt {
+        if input.zoom_delta() > 1.0 {
+            try_zoom_out_vertical();
+        }
+
+        if input.key_pressed(ZOOM_OUT) || input.scroll_delta.y < 0.0 {
+            if input.modifiers.command {
+                try_zoom_in_vertical();
+            } else if input.modifiers.alt {
                 cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, false))
-            } else if input.modifiers.command {
-                if let (_, _, _, Some(larger)) = selected_voltage(channel_info) {
-                    cmd.set_vertical_scale(ch, larger, channel_info.probe)
-                }
             } else if let (_, _, _, Some(larger)) = selected_time_base(head) {
                 cmd.set_time_scale(larger);
             }
+        }
+
+        if input.zoom_delta() < 1.0 {
+            try_zoom_in_vertical();
         }
 
         if input.key_pressed(HORIZONTAL_OFFSET_LEFT) {
