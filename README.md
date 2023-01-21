@@ -44,6 +44,22 @@ through that tool if you like. You'll need it for the program to detect the osci
 
 Note: DMM readout/control support is technically possible, but currently not implemented.
 
+## Keyboard Shortcuts
+
+- Toggle measurements: `M`
+- Horizontal zoom in/out (time base): `PageUp`/`PageDown` or mouse wheel up/down
+  - with `Ctrl`: vertical zoom in/out (voltage scale). This affects Ch1 (or Ch2 if Ch1 is
+    disabled). Press `Alt` to force `Ch2` (if enabled).
+  - with `Alt`: move trigger level up/down
+    - with `Shift` (only with keyboard): bigger steps
+- Horizontal offset: `ArrowLeft`/`ArrowRight`
+  - with `Shift`: bigger steps
+  - with `Ctrl`: smaller steps
+- Channel vertical offset. `ArrowUp`/`ArrowDown`.  This affects Ch1 (or Ch2 if Ch1 is
+    disabled). Press `Alt` to force `Ch2` (if enabled)
+  - with `Shift`: bigger steps
+  - with `Ctrl`: smaller steps
+
 ## Limitations
 
 - Switching to DMM/Function generator mode on the device itself will **permanently slow down** the
