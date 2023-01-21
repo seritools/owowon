@@ -69,16 +69,17 @@ fn grid_offset_change(mods: Modifiers, positive: bool) -> i64 {
 }
 
 pub fn calc_new_trigger_level(head: &DataHead, mods: Modifiers, positive: bool) -> Voltage {
-    let attenuation = head.channel(head.trigger.items.channel).probe.0 as f64;
+    let scale_per_unit = head.channel(head.trigger.items.channel).scale_per_unit();
 
-    Voltage(head.trigger.items.level.0 + trigger_level_change(mods, positive) * attenuation)
+    Voltage(head.trigger.items.level.0 + trigger_level_change(mods, positive, scale_per_unit))
 }
 
-fn trigger_level_change(mods: Modifiers, positive: bool) -> f64 {
-    let magnitude = if mods.shift { 0.02 } else { 0.004 };
-
-    // HACK: 0.0001 because the float parsing/rounding on the device is a bit wonky
-    let magnitude = magnitude + 0.0001;
+fn trigger_level_change(mods: Modifiers, positive: bool, scale_per_unit: f64) -> f64 {
+    let magnitude = if mods.shift {
+        scale_per_unit * 5.0
+    } else {
+        scale_per_unit
+    };
 
     if positive {
         magnitude

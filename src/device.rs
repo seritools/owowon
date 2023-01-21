@@ -422,6 +422,8 @@ async fn send_command(cmd: OscilloscopeCommand, io: &mut Io) -> Result<(), RunEr
                 .await?;
         }
         OscilloscopeCommand::SetTriggerLevel(voltage) => {
+            // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
+            let voltage = Voltage(voltage.0 + voltage.0.signum() * 0.0001);
             io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe:LEVel {voltage}"))
                 .await?;
         }
