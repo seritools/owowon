@@ -11,7 +11,7 @@ mod selectable_label_full_width;
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let native_options = eframe::NativeOptions {
         maximized: true,
         min_window_size: Some(egui::vec2(800.0, 400.0)),
@@ -22,5 +22,7 @@ fn main() {
         "owowon-gui",
         native_options,
         Box::new(|cc| Box::new(app::OwowonApp::new(cc))),
-    );
+    )?;
+
+    Ok(())
 }

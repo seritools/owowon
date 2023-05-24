@@ -1,17 +1,17 @@
 [package]
 name = "owowon-gui"
-version = "0.1.1"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-egui = { version = "0.20.1" }
-eframe = { version = "0.20.1", features = ["persistence"] }
+egui = { version = "0.22" }
+eframe = { version = "0.22", features = ["persistence"] }
 serde = { version = "1", features = ["derive"] }
 snmalloc-rs = "0.3"
 tokio = { version = "1.24", features = ["rt"] }
 float-cmp = "0.9"
-windows = { version = "0.44", features = [
+windows = { version = "0.48", features = [
   "implement",
   "Foundation",
   "Foundation_Collections",

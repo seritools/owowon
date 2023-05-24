@@ -79,7 +79,7 @@ impl ScaledNumberExt for f64 {
 
     fn parse_scaled(s: &str) -> Option<Self> {
         let mut scale = SiScale::None;
-        let last = s.chars().rev().next()?;
+        let last = s.chars().next_back()?;
 
         let mut val = if last.is_ascii_digit() {
             s.parse::<f64>().ok()?

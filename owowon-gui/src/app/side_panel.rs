@@ -497,11 +497,11 @@ fn value_changer_box(
 ) {
     ui.horizontal_top(|ui| {
         if ui.button(left_str).clicked() {
-            let modifiers = ui.input().modifiers;
+            let modifiers = ui.input(|input| input.modifiers);
             on_left(modifiers);
         }
         if ui.button(right_str).clicked() {
-            let modifiers = ui.input().modifiers;
+            let modifiers = ui.input(|input| input.modifiers);
             on_right(modifiers);
         }
 

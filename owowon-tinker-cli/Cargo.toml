@@ -1,13 +1,13 @@
 [package]
 name = "owowon-tinker-cli"
-version = "0.1.1"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 tokio = { version = "1.24", features = ["rt-multi-thread"] }
 pretty-hex = "0.3"
-windows = { version = "0.44", features = [
+windows = { version = "0.48", features = [
   "Devices_Enumeration",
   "Devices_Usb",
   "Foundation_Collections",

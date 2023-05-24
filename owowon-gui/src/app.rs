@@ -236,80 +236,80 @@ impl OwowonApp {
         cmd: &OptionalSender<OscilloscopeRunCommand>,
     ) {
         let head = &self.osc_ui_state.head;
-        let mut input = ctx.input_mut();
-
-        if input.consume_shortcut(&TOGGLE_MEASUREMENT) {
-            cmd.toggle_measurements(&self.osc_ui_state);
-        }
-
-        let ch = if !head.channel_enabled(Channel::Ch2) {
-            Channel::Ch1
-        } else if !head.channel_enabled(Channel::Ch1) || input.modifiers.alt {
-            Channel::Ch2
-        } else {
-            Channel::Ch1
-        };
-
-        let channel_info = head.channel(ch);
-
-        let try_zoom_out_vertical = || {
-            if let (_, _, Some(smaller), _) = selected_voltage(channel_info) {
-                cmd.set_vertical_scale(ch, smaller, channel_info.probe)
+        ctx.input_mut(|input| {
+            if input.consume_shortcut(&TOGGLE_MEASUREMENT) {
+                cmd.toggle_measurements(&self.osc_ui_state);
             }
-        };
-        let try_zoom_in_vertical = || {
-            if let (_, _, _, Some(larger)) = selected_voltage(channel_info) {
-                cmd.set_vertical_scale(ch, larger, channel_info.probe)
-            }
-        };
 
-        if input.key_pressed(ZOOM_IN) || input.scroll_delta.y > 0.0 {
-            if input.modifiers.command {
+            let ch = if !head.channel_enabled(Channel::Ch2) {
+                Channel::Ch1
+            } else if !head.channel_enabled(Channel::Ch1) || input.modifiers.alt {
+                Channel::Ch2
+            } else {
+                Channel::Ch1
+            };
+
+            let channel_info = head.channel(ch);
+
+            let try_zoom_out_vertical = || {
+                if let (_, _, Some(smaller), _) = selected_voltage(channel_info) {
+                    cmd.set_vertical_scale(ch, smaller, channel_info.probe)
+                }
+            };
+            let try_zoom_in_vertical = || {
+                if let (_, _, _, Some(larger)) = selected_voltage(channel_info) {
+                    cmd.set_vertical_scale(ch, larger, channel_info.probe)
+                }
+            };
+
+            if input.key_pressed(ZOOM_IN) || input.scroll_delta.y > 0.0 {
+                if input.modifiers.command {
+                    try_zoom_out_vertical();
+                } else if input.modifiers.alt {
+                    cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, true))
+                } else if let (_, _, Some(smaller), _) = selected_time_base(head) {
+                    cmd.set_time_scale(smaller);
+                }
+            }
+
+            if input.zoom_delta() > 1.0 {
                 try_zoom_out_vertical();
-            } else if input.modifiers.alt {
-                cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, true))
-            } else if let (_, _, Some(smaller), _) = selected_time_base(head) {
-                cmd.set_time_scale(smaller);
             }
-        }
 
-        if input.zoom_delta() > 1.0 {
-            try_zoom_out_vertical();
-        }
+            if input.key_pressed(ZOOM_OUT) || input.scroll_delta.y < 0.0 {
+                if input.modifiers.command {
+                    try_zoom_in_vertical();
+                } else if input.modifiers.alt {
+                    cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, false))
+                } else if let (_, _, _, Some(larger)) = selected_time_base(head) {
+                    cmd.set_time_scale(larger);
+                }
+            }
 
-        if input.key_pressed(ZOOM_OUT) || input.scroll_delta.y < 0.0 {
-            if input.modifiers.command {
+            if input.zoom_delta() < 1.0 {
                 try_zoom_in_vertical();
-            } else if input.modifiers.alt {
-                cmd.set_trigger_level(calc_new_trigger_level(head, input.modifiers, false))
-            } else if let (_, _, _, Some(larger)) = selected_time_base(head) {
-                cmd.set_time_scale(larger);
             }
-        }
 
-        if input.zoom_delta() < 1.0 {
-            try_zoom_in_vertical();
-        }
+            if input.key_pressed(HORIZONTAL_OFFSET_LEFT) {
+                cmd.set_horizontal_offset(calc_new_horizontal_offset(head, input.modifiers, true))
+            }
+            if input.key_pressed(HORIZONTAL_OFFSET_RIGHT) {
+                cmd.set_horizontal_offset(calc_new_horizontal_offset(head, input.modifiers, false))
+            }
 
-        if input.key_pressed(HORIZONTAL_OFFSET_LEFT) {
-            cmd.set_horizontal_offset(calc_new_horizontal_offset(head, input.modifiers, true))
-        }
-        if input.key_pressed(HORIZONTAL_OFFSET_RIGHT) {
-            cmd.set_horizontal_offset(calc_new_horizontal_offset(head, input.modifiers, false))
-        }
-
-        if input.key_pressed(VERTICAL_OFFSET_UP) {
-            cmd.set_vertical_offset(
-                ch,
-                calc_new_vertical_offset(head.channel(ch), input.modifiers, true),
-            )
-        }
-        if input.key_pressed(VERTICAL_OFFSET_DOWN) {
-            cmd.set_vertical_offset(
-                ch,
-                calc_new_vertical_offset(head.channel(ch), input.modifiers, false),
-            )
-        }
+            if input.key_pressed(VERTICAL_OFFSET_UP) {
+                cmd.set_vertical_offset(
+                    ch,
+                    calc_new_vertical_offset(head.channel(ch), input.modifiers, true),
+                )
+            }
+            if input.key_pressed(VERTICAL_OFFSET_DOWN) {
+                cmd.set_vertical_offset(
+                    ch,
+                    calc_new_vertical_offset(head.channel(ch), input.modifiers, false),
+                )
+            }
+        });
     }
 
     fn device_list_or_fail_ui(
