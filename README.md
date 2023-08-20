@@ -74,8 +74,11 @@ Note: DMM readout/control support is technically possible, but currently not imp
 - Switching to DMM/Function generator mode on the device itself will **permanently slow down** the
   acquisition of data by a factor of ~2-4. Only switching back to the oscilloscope view and then
   restarting the device restores the full performance.
-  - It seems that the reason for this is that the DMM mode is not disabled when leaving the DMM
-    screen, and there doesn't seem to be a way to disable it through the USB interface.
+  - You can also hit the play/pause button to hold the current DMM value, which temporarily returns
+    it to full speed. However, it seems that the hold is automatically released when switching modes
+    back to function generator/oscilloscope view. Since there doesn't seem to be a way to disable
+    the DMM entirely through the USB interface, the only way to get back to full speed is to restart
+    the device entirely.
 - Opening any menu or enabling drawing measurements on the device itself will **temporarily** slow
   down acquisition. Closing the menu or disabling the measurements, respectively, will restore the
   full acquisition speed.
