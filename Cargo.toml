@@ -15,14 +15,14 @@ license.workspace = true
 
 [dependencies]
 tokio = { version = "1.24", features = ["macros", "sync", "time"] }
-windows = { version = "0.48", features = [
+windows = { version = "0.51.1", features = [
   "Devices_Enumeration",
   "Devices_Usb",
   "Foundation_Collections",
   "Storage_Streams",
 ] }
 snafu = "0.7"
-strum = { version = "0.24", features = ["derive"] }
+strum = { version = "0.25", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
 serde_json = "1"

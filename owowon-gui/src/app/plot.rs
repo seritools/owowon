@@ -9,7 +9,7 @@ use owowon::{
 };
 use std::ops::Deref;
 
-pub(crate) fn ui(app: &mut OwowonApp, ui: &mut Ui) {
+pub(crate) fn ui(app: &OwowonApp, ui: &mut Ui) {
     let OscilloscopeUiState {
         head,
         ch1_data,
