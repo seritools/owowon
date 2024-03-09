@@ -570,14 +570,11 @@ async fn get_signal(
 
 async fn get_measurements(io: &mut Io, ch: Channel) -> Result<Measurements, RunError> {
     let commands = Measurements::channel_to_measurement_commands(ch);
-    for cmd in commands {
-        io.cmd_nowait(cmd).await?;
-    }
 
     let mut measurements = Measurements::default();
-
     let buf = &mut [0u8; 64];
-    for _ in commands {
+    for cmd in commands {
+        io.cmd_nowait(cmd).await?;
         let read = io.read(buf).await?;
         measurements.with_parsed(std::str::from_utf8(read)?);
     }

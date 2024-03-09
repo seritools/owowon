@@ -143,8 +143,8 @@ impl OwowonApp {
 }
 
 impl eframe::App for OwowonApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let device_list = match self.device_list_or_fail_ui(ctx, frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let device_list = match self.device_list_or_fail_ui(ctx) {
             Some(value) => value,
             None => return,
         };
@@ -202,7 +202,7 @@ impl eframe::App for OwowonApp {
                 });
 
                 if ui.button("Quit").clicked() {
-                    frame.close()
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
 
                 return;
@@ -262,7 +262,7 @@ impl OwowonApp {
                 }
             };
 
-            if input.key_pressed(ZOOM_IN) || input.scroll_delta.y > 0.0 {
+            if input.key_pressed(ZOOM_IN) || input.raw_scroll_delta.y > 0.0 {
                 if input.modifiers.command {
                     try_zoom_out_vertical();
                 } else if input.modifiers.alt {
@@ -276,7 +276,7 @@ impl OwowonApp {
                 try_zoom_out_vertical();
             }
 
-            if input.key_pressed(ZOOM_OUT) || input.scroll_delta.y < 0.0 {
+            if input.key_pressed(ZOOM_OUT) || input.raw_scroll_delta.y < 0.0 {
                 if input.modifiers.command {
                     try_zoom_in_vertical();
                 } else if input.modifiers.alt {
@@ -315,7 +315,6 @@ impl OwowonApp {
     fn device_list_or_fail_ui(
         &mut self,
         ctx: &egui::Context,
-        frame: &mut eframe::Frame,
     ) -> Option<Arc<RwLock<HashMap<String, DeviceInformation>>>> {
         let device_list = if let Some(s) = self.device_selector.as_ref() {
             s.list().clone()
@@ -325,7 +324,7 @@ impl OwowonApp {
                 ui.label("Could not initialize device selector");
 
                 if ui.button("Quit").clicked() {
-                    frame.close();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
             return None;

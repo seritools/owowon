@@ -1,8 +1,6 @@
 use super::{OscilloscopeUiState, OwowonApp};
-use egui::{
-    plot::{GridInput, GridMark, HLine, Line, LineStyle, Plot, PlotPoints, VLine},
-    Color32, Ui,
-};
+use egui::{Color32, Ui, Vec2};
+use egui_plot::{GridInput, GridMark, HLine, Line, LineStyle, Plot, PlotPoints, VLine};
 use owowon::{
     consts::{GRID_DIV_COUNT_HORIZONTAL, GRID_DIV_SIZE, SAMPLES},
     data::{head::Channel, units::Voltage},
@@ -27,24 +25,22 @@ pub(crate) fn ui(app: &OwowonApp, ui: &mut Ui) {
     };
 
     let head = *head;
-
     Plot::new("osc")
-        // recalc bounds always, so that the shown area always fits the data
-        // .reset_bounds()
         .include_y(-128.25)
         .include_y(127.25)
         .include_x(-150.0f32)
         .include_x(150.0f32)
+        .set_margin_fraction(Vec2::ZERO)
         .x_grid_spacer(const_grid_lines)
         .y_grid_spacer(const_grid_lines)
         .allow_boxed_zoom(false)
         .allow_drag(false)
         .allow_scroll(false)
         .allow_zoom(false)
+        .allow_double_click_reset(false)
+        .show_axes(false)
         .show_x(true)
         .show_y(true)
-        .x_axis_formatter(|_, _| String::new())
-        .y_axis_formatter(|_, _| String::new())
         .label_formatter(move |name, point| {
             let channel = match name {
                 "CH1" => Channel::Ch1,
@@ -55,7 +51,11 @@ pub(crate) fn ui(app: &OwowonApp, ui: &mut Ui) {
             let channel = head.channel(channel);
             let vscale_per_unit = channel.scale_per_unit();
             let offset_scaled = channel.offset as f64 * vscale_per_unit;
-            format!("    {}", Voltage(point.y * vscale_per_unit - offset_scaled))
+            format!(
+                "{}: {}",
+                channel.channel,
+                Voltage(point.y * vscale_per_unit - offset_scaled)
+            )
         })
         .show(ui, |plot_ui| {
             if let Some(line) = line1 {

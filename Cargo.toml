@@ -7,6 +7,12 @@ version = "0.1.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[workspace.dependencies]
+tokio = { version = "1.36" }
+windows = { version = "0.54.0" }
+snafu = "0.8"
+serde = "1"
+
 [package]
 name = "owowon"
 version.workspace = true
@@ -14,16 +20,16 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tokio = { version = "1.24", features = ["macros", "sync", "time"] }
-windows = { version = "0.51.1", features = [
+tokio = { workspace = true, features = ["macros", "sync", "time"] }
+windows = { workspace = true, features = [
   "Devices_Enumeration",
   "Devices_Usb",
   "Foundation_Collections",
   "Storage_Streams",
 ] }
-snafu = "0.7"
-strum = { version = "0.25", features = ["derive"] }
-serde = { version = "1", features = ["derive"] }
+snafu = { workspace = true }
+strum = { version = "0.26", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 serde_with = "3"
 serde_json = "1"
 derive_more = "0.99"
