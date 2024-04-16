@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         viewport: egui::ViewportBuilder::default()
             .with_min_inner_size(egui::vec2(800.0, 400.0))
             .with_maximized(true),
-        // persist_window: true, // wait for egui to fix maximization not being persisted
+        persist_window: false, // wait for egui to fix maximization not being persisted before setting this to true
         ..Default::default()
     };
 
