@@ -5,9 +5,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-egui = { version = "0.26" }
-egui_plot = { version = "0.26" }
-eframe = { version = "0.26", features = ["persistence"] }
+egui = { version = "0.27.2" }
+egui_plot = { version = "0.27.2" }
+eframe = { version = "0.27.2", features = ["persistence"] }
 serde = { workspace = true, features = ["derive"] }
 snmalloc-rs = "0.3"
 tokio = { workspace = true, features = ["rt"] }
