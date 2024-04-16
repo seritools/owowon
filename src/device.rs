@@ -30,7 +30,7 @@ use windows::{
 pub const VID: u32 = 0x5345;
 pub const PID: u32 = 0x1234;
 
-pub const IO_TIMEOUT: Duration = Duration::from_secs(2);
+pub const IO_TIMEOUT: Duration = Duration::from_secs(10);
 const MIN_PAUSE: Duration = Duration::from_millis(10);
 
 #[derive(Debug, Snafu)]
