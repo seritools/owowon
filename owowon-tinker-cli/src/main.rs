@@ -16,10 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let time = Instant::now();
 
-        io.cmd_nowait(line.as_bytes()).await?;
+        io.raw_send_nowait(line.as_bytes()).await?;
 
         if line.ends_with('?') {
-            let msg = io.read(&mut buf).await?;
+            let msg = io.recv(&mut buf).await?;
 
             println!("{}", pretty_hex::pretty_hex(&msg));
         }

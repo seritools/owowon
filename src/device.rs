@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::{
     sync::mpsc::{self, error::TryRecvError},
-    time::Instant,
+    time::{error::Elapsed, timeout, Instant},
 };
 use windows::{
     core::HSTRING,
@@ -29,6 +29,9 @@ use windows::{
 
 pub const VID: u32 = 0x5345;
 pub const PID: u32 = 0x1234;
+
+pub const IO_TIMEOUT: Duration = Duration::from_secs(2);
+const MIN_PAUSE: Duration = Duration::from_millis(10);
 
 #[derive(Debug, Snafu)]
 pub enum FromUsbDeviceError {
@@ -182,44 +185,39 @@ pub struct Io {
 }
 
 impl Io {
-    pub async fn cmd(&mut self, command: &[u8]) -> Result<(), WindowsError> {
-        const MIN_PAUSE: Duration = Duration::from_millis(10);
+    pub async fn send(&mut self, command: &[u8]) -> Result<(), IoError> {
+        timeout(IO_TIMEOUT, self.raw_send(command)).await?
+    }
 
+    pub async fn raw_send(&mut self, command: &[u8]) -> Result<(), IoError> {
         if let Some(wait) = MIN_PAUSE.checked_sub(self.last_write.elapsed()) {
             tokio::time::sleep(wait).await;
         }
 
-        self.cmd_nowait(command).await
+        self.raw_send_nowait(command).await
     }
 
-    pub async fn cmd_nowait(&mut self, command: &[u8]) -> Result<(), WindowsError> {
-        self.w.WriteBytes(command)?;
-        self.w.StoreAsync()?.await?;
-
-        self.last_write = Instant::now();
-
-        Ok(())
-    }
-
-    pub async fn cmd_with_writer<'a>(
+    pub async fn send_with_writer<'a>(
         &'a mut self,
         f: impl FnOnce(&mut IoWriter<'a>) -> Result<(), std::io::Error>,
     ) -> Result<(), IoError> {
-        let mut io_writer = IoWriter(&self.w);
-        f(&mut io_writer)?;
-
-        const MIN_PAUSE: Duration = Duration::from_millis(10);
-
-        if let Some(wait) = MIN_PAUSE.checked_sub(self.last_write.elapsed()) {
-            tokio::time::sleep(wait).await;
-        }
-        self.w.StoreAsync()?.await?;
-
-        self.last_write = Instant::now();
-        Ok(())
+        timeout(IO_TIMEOUT, self.raw_send_with_writer(f)).await?
     }
 
-    pub async fn read<'a>(&mut self, buf: &'a mut [u8]) -> Result<&'a mut [u8], WindowsError> {
+    pub async fn recv<'a>(&mut self, buf: &'a mut [u8]) -> Result<&'a mut [u8], IoError> {
+        timeout(IO_TIMEOUT, self.raw_recv(buf)).await?
+    }
+
+    pub async fn send_with_output<'b>(
+        &mut self,
+        command: &[u8],
+        buf: &'b mut [u8],
+    ) -> Result<&'b mut [u8], IoError> {
+        self.send(command).await?;
+        self.raw_recv(buf).await
+    }
+
+    pub async fn raw_recv<'a>(&mut self, buf: &'a mut [u8]) -> Result<&'a mut [u8], IoError> {
         assert!(buf.len() <= u32::MAX as usize);
 
         let bytes_read = self.r.LoadAsync(buf.len() as u32)?.await?;
@@ -231,13 +229,30 @@ impl Io {
         Ok(sliced_buf)
     }
 
-    pub async fn cmd_output<'b>(
-        &mut self,
-        command: &[u8],
-        buf: &'b mut [u8],
-    ) -> Result<&'b mut [u8], WindowsError> {
-        self.cmd(command).await?;
-        self.read(buf).await
+    pub async fn raw_send_nowait(&mut self, command: &[u8]) -> Result<(), IoError> {
+        self.w.WriteBytes(command)?;
+
+        self.last_write = Instant::now();
+        self.w.StoreAsync()?.await?;
+
+        Ok(())
+    }
+
+    pub async fn raw_send_with_writer<'a>(
+        &'a mut self,
+        f: impl FnOnce(&mut IoWriter<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), IoError> {
+        let mut io_writer = IoWriter(&self.w);
+        f(&mut io_writer)?;
+
+        if let Some(wait) = MIN_PAUSE.checked_sub(self.last_write.elapsed()) {
+            tokio::time::sleep(wait).await;
+        }
+
+        self.last_write = Instant::now();
+        self.w.StoreAsync()?.await?;
+
+        Ok(())
     }
 }
 
@@ -249,6 +264,8 @@ pub enum IoError {
     Windows { source: WindowsError },
     #[snafu(context(false))]
     Io { source: std::io::Error },
+    #[snafu(context(false))]
+    Timeout { source: Elapsed },
 }
 
 impl From<windows::core::Error> for IoError {
@@ -378,73 +395,73 @@ async fn send_command(cmd: OscilloscopeCommand, io: &mut Io) -> Result<(), RunEr
         OscilloscopeCommand::SetHorizontalOffset(offset) => {
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let offset = offset + offset.signum() * 0.0001;
-            io.cmd_with_writer(|w| write!(w, ":HORIzontal:OFFSet {offset:.4}"))
+            io.send_with_writer(|w| write!(w, ":HORIzontal:OFFSet {offset:.4}"))
                 .await?;
         }
         OscilloscopeCommand::SetChannelDisplay(channel, enabled) => {
-            io.cmd_with_writer(|w| write!(w, ":{channel}:DISPlay {enabled}"))
+            io.send_with_writer(|w| write!(w, ":{channel}:DISPlay {enabled}"))
                 .await?;
         }
         OscilloscopeCommand::SetChannelVOffset(channel, offset) => {
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let offset = offset + offset.signum() * 0.0001;
-            io.cmd_with_writer(|w| write!(w, ":{channel}:OFFSet {offset:.4}"))
+            io.send_with_writer(|w| write!(w, ":{channel}:OFFSet {offset:.4}"))
                 .await?;
         }
         OscilloscopeCommand::SetChannelVScale(channel, scale) => {
-            io.cmd_with_writer(|w| write!(w, ":{channel}:SCALe {scale:.2}"))
+            io.send_with_writer(|w| write!(w, ":{channel}:SCALe {scale:.2}"))
                 .await?;
             // make sure the device is ready again
-            io.cmd_with_writer(|w| write!(w, ":{channel}:SCALe?"))
+            io.send_with_writer(|w| write!(w, ":{channel}:SCALe?"))
                 .await?;
-            let _ = io.read(buf).await?;
+            let _ = io.recv(buf).await?;
         }
         OscilloscopeCommand::SetChannelCoupling(channel, coupling) => {
-            io.cmd_with_writer(|w| write!(w, ":{channel}:COUPling {coupling}"))
+            io.send_with_writer(|w| write!(w, ":{channel}:COUPling {coupling}"))
                 .await?;
         }
         OscilloscopeCommand::SetChannelAttenuation(channel, att) => {
-            io.cmd_with_writer(|w| write!(w, ":{channel}:PROBe {att}"))
+            io.send_with_writer(|w| write!(w, ":{channel}:PROBe {att}"))
                 .await?;
         }
         OscilloscopeCommand::SetTimeScale(time) => {
-            io.cmd_with_writer(|w| write!(w, ":HORIzontal:SCALe {time:#}"))
+            io.send_with_writer(|w| write!(w, ":HORIzontal:SCALe {time:#}"))
                 .await?;
             // make sure the device is ready again
-            let _ = io.cmd_output(b":HORIzontal:SCALe?", buf).await?;
+            let _ = io.send_with_output(b":HORIzontal:SCALe?", buf).await?;
         }
         OscilloscopeCommand::SetTriggerSource(channel) => {
-            io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:SOURce {channel}"))
+            io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:SOURce {channel}"))
                 .await?;
         }
         OscilloscopeCommand::SetTriggerEdge(edge) => {
-            io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe {edge}"))
+            io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe {edge}"))
                 .await?;
         }
         OscilloscopeCommand::SetTriggerLevel(voltage) => {
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let voltage = Voltage(voltage.0 + voltage.0.signum() * 0.0001);
-            io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe:LEVel {voltage}"))
+            io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe:LEVel {voltage}"))
                 .await?;
         }
         OscilloscopeCommand::SetTriggerSweep(sweep) => {
-            io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:SWEep {sweep}"))
+            io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:SWEep {sweep}"))
                 .await?;
         }
         OscilloscopeCommand::SetTriggerCoupling(coupling) => {
-            io.cmd_with_writer(|w| write!(w, ":TRIGger:SINGle:COUPling {coupling}"))
+            io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:COUPling {coupling}"))
                 .await?;
         }
         OscilloscopeCommand::SetAcquisitionMode(ty) => {
-            io.cmd_with_writer(|w| write!(w, ":ACQuire:MODe {ty}"))
+            io.send_with_writer(|w| write!(w, ":ACQuire:MODe {ty}"))
                 .await?;
         }
         OscilloscopeCommand::SetAcquisitionDepth(d) => {
-            io.cmd_with_writer(|w| write!(w, ":ACQuire:DEPMem {d}"))
+            io.send_with_writer(|w| write!(w, ":ACQuire:DEPMem {d}"))
                 .await?;
         }
         OscilloscopeCommand::Auto => {
-            io.cmd(b":AUToset .").await?;
+            io.send(b":AUToset .").await?;
         }
     }
 
@@ -456,28 +473,28 @@ async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, RunError> {
 
     Ok(AwgConfig {
         enabled: {
-            let enabled = io.cmd_output(b":CHAN?", buf).await?;
+            let enabled = io.send_with_output(b":CHAN?", buf).await?;
             from_utf8(enabled)?
                 .trim()
                 .parse::<AwgChannelDisplay>()?
                 .into()
         },
         mode: {
-            let mode = io.cmd_output(b":FUNC?", buf).await?;
+            let mode = io.send_with_output(b":FUNC?", buf).await?;
             from_utf8(mode)?.trim().parse()?
         },
         frequency: {
-            let freq = io.cmd_output(b":FUNC:FREQ?", buf).await?;
+            let freq = io.send_with_output(b":FUNC:FREQ?", buf).await?;
             // BUG: frequency readout is micro-Hz for some reason
             Frequency(from_utf8(freq)?.trim().parse::<f64>()? / 1e6)
         },
         amplitude: {
-            let volt = io.cmd_output(b":FUNC:AMPL?", buf).await?;
+            let volt = io.send_with_output(b":FUNC:AMPL?", buf).await?;
             // BUG: amplitude readout is millivolt for some reason
             Voltage(from_utf8(volt)?.trim().parse::<f64>()? / 1e3)
         },
         offset: {
-            let volt = io.cmd_output(b":FUNC:OFFS?", buf).await?;
+            let volt = io.send_with_output(b":FUNC:OFFS?", buf).await?;
             // BUG: offset readout is millivolt for some reason
             Voltage(from_utf8(volt)?.trim().parse::<f64>()? / 1e3)
         },
@@ -485,15 +502,15 @@ async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, RunError> {
 }
 
 async fn set_awg_config(io: &mut Io, config: AwgConfig) -> Result<(), RunError> {
-    io.cmd_with_writer(|w| write!(w, ":FUNC {}", config.mode))
+    io.send_with_writer(|w| write!(w, ":FUNC {}", config.mode))
         .await?;
-    io.cmd_with_writer(|w| write!(w, ":FUNC:FREQ {}", config.frequency.0))
+    io.send_with_writer(|w| write!(w, ":FUNC:FREQ {}", config.frequency.0))
         .await?;
-    io.cmd_with_writer(|w| write!(w, ":FUNC:AMPL {}", config.amplitude.0))
+    io.send_with_writer(|w| write!(w, ":FUNC:AMPL {}", config.amplitude.0))
         .await?;
-    io.cmd_with_writer(|w| write!(w, ":FUNC:OFFS {}", config.offset.0))
+    io.send_with_writer(|w| write!(w, ":FUNC:OFFS {}", config.offset.0))
         .await?;
-    io.cmd_with_writer(|w| write!(w, ":CHAN {}", AwgChannelDisplay::from(config.enabled)))
+    io.send_with_writer(|w| write!(w, ":CHAN {}", AwgChannelDisplay::from(config.enabled)))
         .await?;
 
     Ok(())
@@ -512,16 +529,16 @@ async fn get_signal(
 
     if should_read_data {
         if ch0_enabled {
-            io.cmd_nowait(b":DATa:WAVe:SCReen:CH1?").await?;
+            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH1?").await?;
         } else {
-            io.cmd_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
+            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
         }
     }
-    io.cmd_nowait(b":DATa:WAVe:SCReen:HEAD?").await?;
+    io.raw_send_nowait(b":DATa:WAVe:SCReen:HEAD?").await?;
 
-    let read1 = io.read(buf).await?;
+    let read1 = io.recv(buf).await?;
     let (head, ch_data): (DataHead, _) = if should_read_data {
-        let read2 = io.read(buf2).await?;
+        let read2 = io.recv(buf2).await?;
 
         match serde_json::from_slice(&read2[4..]) {
             Ok(head) => (head, Some(read1)),
@@ -544,8 +561,8 @@ async fn get_signal(
     });
 
     let ch_vec_2 = if should_read_data && ch1_enabled {
-        io.cmd_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
-        let read3 = io.read(buf3).await?;
+        io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
+        let read3 = io.recv(buf3).await?;
 
         let mut ch_vec = ArrayVec::new();
         ch_vec.extend(read3[4..].iter().copied());
@@ -574,8 +591,8 @@ async fn get_measurements(io: &mut Io, ch: Channel) -> Result<Measurements, RunE
     let mut measurements = Measurements::default();
     let buf = &mut [0u8; 64];
     for cmd in commands {
-        io.cmd_nowait(cmd).await?;
-        let read = io.read(buf).await?;
+        io.raw_send_nowait(cmd).await?;
+        let read = io.recv(buf).await?;
         measurements.with_parsed(std::str::from_utf8(read)?);
     }
 
