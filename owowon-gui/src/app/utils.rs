@@ -3,12 +3,12 @@ use float_cmp::ApproxEqUlps;
 use owowon::{
     consts::{GRID_DIV_SIZE, GRID_DIV_SIZE_INT, TIME_BASES, VERTICAL_SCALES},
     data::{
-        head::{ChannelInfo, DataHead},
+        head::{ChannelInfo, DataHeader},
         units::{Time, Voltage},
     },
 };
 
-pub fn selected_time_base(head: &DataHead) -> (usize, Time, Option<Time>, Option<Time>) {
+pub fn selected_time_base(head: &DataHeader) -> (usize, Time, Option<Time>, Option<Time>) {
     let selected_index = TIME_BASES
         .iter()
         .position(|&t| t.0.approx_eq_ulps(&head.time_base.scale.0, 2))
@@ -48,7 +48,7 @@ pub fn calc_new_vertical_offset(
     (channel_info.offset + grid_offset_change(mods, positive)) as f64 / GRID_DIV_SIZE
 }
 
-pub fn calc_new_horizontal_offset(head: &DataHead, mods: Modifiers, positive: bool) -> f64 {
+pub fn calc_new_horizontal_offset(head: &DataHeader, mods: Modifiers, positive: bool) -> f64 {
     (head.time_base.h_offset + grid_offset_change(mods, positive)) as f64 / GRID_DIV_SIZE
 }
 
@@ -68,7 +68,7 @@ fn grid_offset_change(mods: Modifiers, positive: bool) -> i64 {
     }
 }
 
-pub fn calc_new_trigger_level(head: &DataHead, mods: Modifiers, positive: bool) -> Voltage {
+pub fn calc_new_trigger_level(head: &DataHeader, mods: Modifiers, positive: bool) -> Voltage {
     let scale_per_unit = head.channel(head.trigger.items.channel).scale_per_unit();
 
     Voltage(head.trigger.items.level.0 + trigger_level_change(mods, positive, scale_per_unit))

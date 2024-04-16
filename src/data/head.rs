@@ -5,7 +5,7 @@ use strum::{Display, EnumString};
 
 #[derive(Debug, Deserialize, Clone, Copy)]
 #[serde(rename_all(deserialize = "UPPERCASE"))]
-pub struct DataHead {
+pub struct DataHeader {
     // pub idn: &'a str,
     // pub model: &'a str,
     #[serde(rename = "TIMEBASE")]
@@ -20,7 +20,7 @@ pub struct DataHead {
     pub trigger: Trigger,
 }
 
-impl DataHead {
+impl DataHeader {
     pub fn channel(&self, ch: Channel) -> &ChannelInfo {
         &self.channels[ch as usize]
     }
@@ -30,7 +30,7 @@ impl DataHead {
     }
 }
 
-impl Default for DataHead {
+impl Default for DataHeader {
     fn default() -> Self {
         Self {
             time_base: Default::default(),

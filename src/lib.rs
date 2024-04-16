@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 use data::{
     awg::AwgConfig,
     head::{
-        Channel, ChannelCoupling, ChannelDisplay, DataHead, MemoryDepth, SampleType,
+        Channel, ChannelCoupling, ChannelDisplay, DataHeader, MemoryDepth, SampleType,
         TriggerCoupling, TriggerEdge, TriggerSweep,
     },
     measurement::Measurements,
@@ -74,7 +74,7 @@ pub struct OscilloscopeData {
 
 #[derive(Debug, Default)]
 pub struct SignalData {
-    pub head: DataHead,
+    pub header: DataHeader,
     pub ch0_data: Option<ArrayVec<u8, 1024>>,
     pub ch1_data: Option<ArrayVec<u8, 1024>>,
 }

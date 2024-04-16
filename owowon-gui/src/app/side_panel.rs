@@ -11,7 +11,7 @@ use owowon::{
     data::{
         awg::AWG_MODES,
         head::{
-            Channel, ChannelCoupling, ChannelInfo, DataHead, MemoryDepth, SampleType,
+            Channel, ChannelCoupling, ChannelInfo, DataHeader, MemoryDepth, SampleType,
             TriggerCoupling, TriggerEdge, TriggerSweep,
         },
         units::{Frequency, Time, Voltage},
@@ -152,7 +152,7 @@ pub(crate) fn ui(
 
 fn time_base_ui(
     ui: &mut Ui,
-    head: &DataHead,
+    head: &DataHeader,
     horizontal_offset_string: &mut String,
     command_tx: &OptionalSender<OscilloscopeRunCommand>,
 ) {
@@ -367,7 +367,7 @@ fn channel_voffset(
 
 fn trigger_ui(
     ui: &mut Ui,
-    head: &DataHead,
+    head: &DataHeader,
     command_tx: &OptionalSender<OscilloscopeRunCommand>,
     trigger_level_string: &mut String,
 ) {
@@ -454,7 +454,7 @@ You'll have to press the play/pause button on the device itself.",
 
 fn trigger_level(
     ui: &mut Ui,
-    head: &DataHead,
+    head: &DataHeader,
     trigger_level_string: &mut String,
     command_tx: &OptionalSender<OscilloscopeRunCommand>,
 ) {

@@ -1,7 +1,7 @@
 use crate::{
     data::{
         awg::{AwgChannelDisplay, AwgConfig},
-        head::{Channel, ChannelDisplay, DataHead},
+        head::{Channel, ChannelDisplay, DataHeader},
         units::{Frequency, Voltage},
     },
     InitialDeviceRunConfig, Measurements, OscilloscopeCommand, OscilloscopeData,
@@ -214,7 +214,7 @@ impl Io {
         buf: &'b mut [u8],
     ) -> Result<&'b mut [u8], IoError> {
         self.send(command).await?;
-        self.raw_recv(buf).await
+        self.recv(buf).await
     }
 
     pub async fn raw_recv<'a>(&mut self, buf: &'a mut [u8]) -> Result<&'a mut [u8], IoError> {
@@ -260,7 +260,7 @@ pub struct IoWriter<'a>(&'a DataWriter);
 
 #[derive(Debug, Snafu)]
 pub enum IoError {
-    #[snafu(context(false))]
+    #[snafu(transparent)]
     Windows { source: WindowsError },
     #[snafu(context(false))]
     Io { source: std::io::Error },
@@ -297,7 +297,7 @@ pub async fn run_device_loop(
     initial_config: InitialDeviceRunConfig,
     mut notify_updated: impl FnMut(),
 ) -> Result<(), RunError> {
-    let mut io = device.raw_io()?;
+    let mut io = device.raw_io().context(IoOpenSnafu)?;
 
     let mut ch0_enabled = true;
     let mut ch1_enabled = true;
@@ -347,18 +347,26 @@ pub async fn run_device_loop(
         let i = Instant::now();
 
         let signal_data = get_signal(&mut io, ch0_enabled, ch1_enabled).await?;
-        ch0_enabled = signal_data.head.channels[0].display == ChannelDisplay::On;
-        ch1_enabled = signal_data.head.channels[1].display == ChannelDisplay::On;
+        ch0_enabled = signal_data.header.channels[0].display == ChannelDisplay::On;
+        ch1_enabled = signal_data.header.channels[1].display == ChannelDisplay::On;
 
         let measurements = if measurements_enabled {
             let ch0_measurements = if measurements_enabled && ch0_enabled {
-                get_measurements(&mut io, Channel::Ch1).await?
+                get_measurements(&mut io, Channel::Ch1)
+                    .await
+                    .context(AcquireMeasurementSnafu {
+                        channel: Channel::Ch1,
+                    })?
             } else {
                 Default::default()
             };
 
             let ch1_measurements = if measurements_enabled && ch1_enabled {
-                get_measurements(&mut io, Channel::Ch2).await?
+                get_measurements(&mut io, Channel::Ch2)
+                    .await
+                    .context(AcquireMeasurementSnafu {
+                        channel: Channel::Ch2,
+                    })?
             } else {
                 Default::default()
             };
@@ -396,79 +404,103 @@ async fn send_command(cmd: OscilloscopeCommand, io: &mut Io) -> Result<(), RunEr
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let offset = offset + offset.signum() * 0.0001;
             io.send_with_writer(|w| write!(w, ":HORIzontal:OFFSet {offset:.4}"))
-                .await?;
+                .await
+                .context(SetHorizontalOffsetSnafu)?;
         }
         OscilloscopeCommand::SetChannelDisplay(channel, enabled) => {
             io.send_with_writer(|w| write!(w, ":{channel}:DISPlay {enabled}"))
-                .await?;
+                .await
+                .context(SetChannelDisplaySnafu)?;
         }
         OscilloscopeCommand::SetChannelVOffset(channel, offset) => {
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let offset = offset + offset.signum() * 0.0001;
             io.send_with_writer(|w| write!(w, ":{channel}:OFFSet {offset:.4}"))
-                .await?;
+                .await
+                .context(SetChannelVOffsetSnafu)?;
         }
         OscilloscopeCommand::SetChannelVScale(channel, scale) => {
             io.send_with_writer(|w| write!(w, ":{channel}:SCALe {scale:.2}"))
-                .await?;
+                .await
+                .context(SetChannelVScaleSnafu { at: "send set" })?;
             // make sure the device is ready again
             io.send_with_writer(|w| write!(w, ":{channel}:SCALe?"))
-                .await?;
-            let _ = io.recv(buf).await?;
+                .await
+                .context(SetChannelVScaleSnafu {
+                    at: "send retrieve",
+                })?;
+            let _ = io.recv(buf).await.context(SetChannelVScaleSnafu {
+                at: "recv retrieve",
+            })?;
         }
         OscilloscopeCommand::SetChannelCoupling(channel, coupling) => {
             io.send_with_writer(|w| write!(w, ":{channel}:COUPling {coupling}"))
-                .await?;
+                .await
+                .context(SetChannelCouplingSnafu)?;
         }
         OscilloscopeCommand::SetChannelAttenuation(channel, att) => {
             io.send_with_writer(|w| write!(w, ":{channel}:PROBe {att}"))
-                .await?;
+                .await
+                .context(SetChannelAttenuationSnafu)?;
         }
         OscilloscopeCommand::SetTimeScale(time) => {
             io.send_with_writer(|w| write!(w, ":HORIzontal:SCALe {time:#}"))
-                .await?;
+                .await
+                .context(SetTimeScaleSnafu { at: "send set" })?;
             // make sure the device is ready again
-            let _ = io.send_with_output(b":HORIzontal:SCALe?", buf).await?;
+            let _ = io
+                .send_with_output(b":HORIzontal:SCALe?", buf)
+                .await
+                .context(SetTimeScaleSnafu {
+                    at: "send/recv retrieve",
+                })?;
         }
         OscilloscopeCommand::SetTriggerSource(channel) => {
             io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:SOURce {channel}"))
-                .await?;
+                .await
+                .context(SetTriggerSourceSnafu)?;
         }
         OscilloscopeCommand::SetTriggerEdge(edge) => {
             io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe {edge}"))
-                .await?;
+                .await
+                .context(SetTriggerEdgeSnafu)?;
         }
         OscilloscopeCommand::SetTriggerLevel(voltage) => {
             // HACK: 0.0001 because the rounding/float parsing on the device is a bit wonky
             let voltage = Voltage(voltage.0 + voltage.0.signum() * 0.0001);
             io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:EDGe:LEVel {voltage}"))
-                .await?;
+                .await
+                .context(SetTriggerLevelSnafu)?;
         }
         OscilloscopeCommand::SetTriggerSweep(sweep) => {
             io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:SWEep {sweep}"))
-                .await?;
+                .await
+                .context(SetTriggerSweepSnafu)?;
         }
         OscilloscopeCommand::SetTriggerCoupling(coupling) => {
             io.send_with_writer(|w| write!(w, ":TRIGger:SINGle:COUPling {coupling}"))
-                .await?;
+                .await
+                .context(SetTriggerCouplingSnafu)?;
         }
         OscilloscopeCommand::SetAcquisitionMode(ty) => {
             io.send_with_writer(|w| write!(w, ":ACQuire:MODe {ty}"))
-                .await?;
+                .await
+                .context(SetAcquisitionModeSnafu)?;
         }
         OscilloscopeCommand::SetAcquisitionDepth(d) => {
             io.send_with_writer(|w| write!(w, ":ACQuire:DEPMem {d}"))
-                .await?;
+                .await
+                .context(SetAcquisitionDepthSnafu)?;
         }
         OscilloscopeCommand::Auto => {
-            io.send(b":AUToset .").await?;
+            io.send(b":AUToset .").await.context(AutoSnafu)?;
         }
     }
 
     Ok(())
 }
 
-async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, RunError> {
+async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, ReadAwgConfigError> {
     let buf = &mut [0u8; 1024];
 
     Ok(AwgConfig {
@@ -501,7 +533,7 @@ async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, RunError> {
     })
 }
 
-async fn set_awg_config(io: &mut Io, config: AwgConfig) -> Result<(), RunError> {
+async fn set_awg_config(io: &mut Io, config: AwgConfig) -> Result<(), SetAwgConfigError> {
     io.send_with_writer(|w| write!(w, ":FUNC {}", config.mode))
         .await?;
     io.send_with_writer(|w| write!(w, ":FUNC:FREQ {}", config.frequency.0))
@@ -520,7 +552,7 @@ async fn get_signal(
     io: &mut Io,
     ch0_enabled: bool,
     ch1_enabled: bool,
-) -> Result<SignalData, RunError> {
+) -> Result<SignalData, AcquireSignalDataError> {
     let buf = &mut [0u8; 1024 + 4];
     let buf2 = &mut [0u8; 1024 + 4];
     let buf3 = &mut [0u8; 1024 + 4];
@@ -529,27 +561,45 @@ async fn get_signal(
 
     if should_read_data {
         if ch0_enabled {
-            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH1?").await?;
+            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH1?")
+                .await
+                .context(SendSignalCmdSnafu {
+                    channel: Some(Channel::Ch1),
+                })?;
         } else {
-            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
+            io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?")
+                .await
+                .context(SendSignalCmdSnafu {
+                    channel: Some(Channel::Ch2),
+                })?;
         }
     }
-    io.raw_send_nowait(b":DATa:WAVe:SCReen:HEAD?").await?;
+    io.raw_send_nowait(b":DATa:WAVe:SCReen:HEAD?")
+        .await
+        .context(SendSignalCmdSnafu { channel: None })?;
 
-    let read1 = io.recv(buf).await?;
-    let (head, ch_data): (DataHead, _) = if should_read_data {
-        let read2 = io.recv(buf2).await?;
+    let read1 = io
+        .recv(buf)
+        .await
+        .context(RecvSignalSnafu { read_number: 1 })?;
+    let (header, ch_data): (DataHeader, _) = if should_read_data {
+        let read2 = io
+            .recv(buf2)
+            .await
+            .context(RecvSignalSnafu { read_number: 2 })?;
 
         match serde_json::from_slice(&read2[4..]) {
             Ok(head) => (head, Some(read1)),
             Err(e) => (
-                serde_json::from_slice(&read1[4..]).context(JsonSnafu { source2: Some(e) })?,
+                serde_json::from_slice(&read1[4..])
+                    .context(DeserializeSignalHeaderSnafu { source2: Some(e) })?,
                 Some(read2),
             ),
         }
     } else {
         (
-            serde_json::from_slice(&read1[4..]).context(JsonSnafu { source2: None })?,
+            serde_json::from_slice(&read1[4..])
+                .context(DeserializeSignalHeaderSnafu { source2: None })?,
             None,
         )
     };
@@ -561,8 +611,15 @@ async fn get_signal(
     });
 
     let ch_vec_2 = if should_read_data && ch1_enabled {
-        io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?").await?;
-        let read3 = io.recv(buf3).await?;
+        io.raw_send_nowait(b":DATa:WAVe:SCReen:CH2?")
+            .await
+            .context(SendSignalCmdSnafu {
+                channel: Some(Channel::Ch2),
+            })?;
+        let read3 = io
+            .recv(buf3)
+            .await
+            .context(RecvSignalSnafu { read_number: 3 })?;
 
         let mut ch_vec = ArrayVec::new();
         ch_vec.extend(read3[4..].iter().copied());
@@ -579,13 +636,16 @@ async fn get_signal(
     };
 
     Ok(SignalData {
-        head,
+        header,
         ch0_data: ch_vec,
         ch1_data: ch_vec_2,
     })
 }
 
-async fn get_measurements(io: &mut Io, ch: Channel) -> Result<Measurements, RunError> {
+async fn get_measurements(
+    io: &mut Io,
+    ch: Channel,
+) -> Result<Measurements, AcquireMeasurementError> {
     let commands = Measurements::channel_to_measurement_commands(ch);
 
     let mut measurements = Measurements::default();
@@ -601,25 +661,124 @@ async fn get_measurements(io: &mut Io, ch: Channel) -> Result<Measurements, RunE
 
 #[derive(Debug, Snafu)]
 pub enum RunError {
+    IoOpen {
+        source: WindowsError,
+    },
+    #[snafu(transparent)]
+    SendCommand {
+        source: CommandIoError,
+    },
+    #[snafu(display("AcquireMeasurement({channel})"))]
+    AcquireMeasurement {
+        source: AcquireMeasurementError,
+        channel: Channel,
+    },
+    #[snafu(transparent)]
+    AcquireSignalData {
+        source: AcquireSignalDataError,
+    },
+    #[snafu(transparent)]
+    ReadAwgConfig {
+        source: ReadAwgConfigError,
+    },
+    #[snafu(transparent)]
+    SetAwgConfig {
+        source: SetAwgConfigError,
+    },
+}
+
+#[derive(Debug, Snafu)]
+pub enum CommandIoError {
+    SetHorizontalOffset {
+        source: IoError,
+    },
+    SetChannelDisplay {
+        source: IoError,
+    },
+    SetChannelVOffset {
+        source: IoError,
+    },
+    #[snafu(display("SetChannelVScale(at: {at})"))]
+    SetChannelVScale {
+        source: IoError,
+        at: &'static str,
+    },
+    SetChannelCoupling {
+        source: IoError,
+    },
+    SetChannelAttenuation {
+        source: IoError,
+    },
+    #[snafu(display("SetTimeScale(at: {at})"))]
+    SetTimeScale {
+        source: IoError,
+        at: &'static str,
+    },
+    SetTriggerSource {
+        source: IoError,
+    },
+    SetTriggerEdge {
+        source: IoError,
+    },
+    SetTriggerLevel {
+        source: IoError,
+    },
+    SetTriggerSweep {
+        source: IoError,
+    },
+    SetTriggerCoupling {
+        source: IoError,
+    },
+    SetAcquisitionMode {
+        source: IoError,
+    },
+    SetAcquisitionDepth {
+        source: IoError,
+    },
+    Auto {
+        source: IoError,
+    },
+}
+
+#[derive(Debug, Snafu)]
+pub enum AcquireMeasurementError {
     #[snafu(context(false))]
     Io { source: IoError },
-    Json {
+    #[snafu(context(false))]
+    Utf8 { source: Utf8Error },
+}
+
+#[derive(Debug, Snafu)]
+pub enum AcquireSignalDataError {
+    #[snafu(display("SendSignalCmd({})", channel.map(|c| c.to_string()).unwrap_or_else(|| "header".to_string())))]
+    SendSignalCmd {
+        source: IoError,
+        /// none if signal header
+        channel: Option<Channel>,
+    },
+    #[snafu(display("RecvSignal({read_number})"))]
+    RecvSignal { source: IoError, read_number: u8 },
+    #[snafu(display("DeserializeSignalHeader(source2: {source2:?})"))]
+    DeserializeSignalHeader {
         source: serde_json::Error,
         source2: Option<serde_json::Error>,
     },
+}
+
+#[derive(Debug, Snafu)]
+pub enum ReadAwgConfigError {
+    #[snafu(context(false))]
+    Io { source: IoError },
     #[snafu(context(false))]
     Utf8 { source: Utf8Error },
     #[snafu(context(false))]
-    Strum { source: strum::ParseError },
-    #[snafu(context(false))]
     Float { source: std::num::ParseFloatError },
+    #[snafu(context(false))]
+    Strum { source: strum::ParseError },
 }
 
-impl From<WindowsError> for RunError {
-    #[track_caller]
-    fn from(source: WindowsError) -> Self {
-        Self::Io {
-            source: IoError::Windows { source },
-        }
-    }
+#[derive(Debug, Snafu)]
+pub enum SetAwgConfigError {
+    #[snafu(context(false))]
+    Io { source: IoError },
 }

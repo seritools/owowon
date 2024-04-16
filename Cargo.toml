@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 tokio = { version = "1.36" }
 windows = { version = "0.54.0" }
-snafu = "0.8"
+snafu = "0.8.2"
 serde = "1"
 
 [package]

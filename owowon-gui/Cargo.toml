@@ -21,5 +21,6 @@ windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_UI_Shell",
 ] }
+snafu = { workspace = true }
 
 owowon = { path = ".." }

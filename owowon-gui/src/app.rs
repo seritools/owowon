@@ -18,7 +18,7 @@ use egui::{
 use owowon::{
     data::{
         awg::{AwgConfig, AWG_MODES},
-        head::{Channel, DataHead, RunStatus},
+        head::{Channel, DataHeader, RunStatus},
         measurement::Measurements,
     },
     device::Device,
@@ -36,7 +36,7 @@ mod utils;
 
 #[derive(Default)]
 pub struct OscilloscopeUiState {
-    head: DataHead,
+    head: DataHeader,
     ch1_data: Vec<u8>,
     ch2_data: Vec<u8>,
     measurements: Option<[Measurements; 2]>,
@@ -347,7 +347,7 @@ impl OwowonApp {
                 self.device_run = DeviceRunState::Running(run)
             }
             Err(e) => {
-                self.last_device_error = Some(e.to_string());
+                self.last_device_error = Some(snafu::Report::from_error(e).to_string());
                 self.device_run = DeviceRunState::Stopped;
             }
         }
@@ -359,7 +359,7 @@ impl OwowonApp {
         match &mut self.device_run {
             DeviceRunState::Stopped => {}
             DeviceRunState::Error(e) => {
-                self.last_device_error = Some(e.to_string());
+                self.last_device_error = Some(snafu::Report::from_error(&*e).to_string());
                 self.device_run = DeviceRunState::Stopped;
             }
             DeviceRunState::Running(run) => {
@@ -419,7 +419,7 @@ impl OwowonApp {
     }
 }
 
-fn bottom_panel_ui(ui: &mut Ui, head: &DataHead, measurements: &[Measurements; 2]) {
+fn bottom_panel_ui(ui: &mut Ui, head: &DataHeader, measurements: &[Measurements; 2]) {
     if head.channel_enabled(Channel::Ch1) {
         ui.columns(Measurements::MEASUREMENT_COUNT, |cols| {
             for (index, measurement) in measurements[0].for_display().into_iter().enumerate() {
@@ -437,7 +437,7 @@ fn bottom_panel_ui(ui: &mut Ui, head: &DataHead, measurements: &[Measurements; 2
 }
 
 fn update_osc_ui_state(state: &mut OscilloscopeUiState, data: owowon::OscilloscopeData) {
-    state.head = data.signal_data.head;
+    state.head = data.signal_data.header;
     state.ch1_data.clear();
     if let Some(ch) = data.signal_data.ch0_data {
         state.ch1_data.extend(ch);
