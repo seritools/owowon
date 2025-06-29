@@ -81,7 +81,8 @@ impl FromStr for Voltage {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.strip_suffix(&['v', 'V']).ok_or("not a voltage")?;
+        let s = s.strip_suffix(['v', 'V']).ok_or("not a voltage")?;
+        let s = s.trim_ascii();
         Ok(Self(f64::parse_scaled(s).ok_or("invalid voltage")?))
     }
 }
@@ -101,7 +102,7 @@ impl FromStr for ProbeAttenuation {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s
-            .strip_suffix(&['x', 'X'])
+            .strip_suffix(['x', 'X'])
             .ok_or("not an attenuation factor")?;
 
         Ok(Self(s.parse().map_err(|_| "invalid attenuation factor")?))
