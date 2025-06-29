@@ -508,27 +508,46 @@ async fn read_awg_config(io: &mut Io) -> Result<AwgConfig, ReadAwgConfigError> {
             let enabled = io.send_with_output(b":CHAN?", buf).await?;
             from_utf8(enabled)?
                 .trim()
-                .parse::<AwgChannelDisplay>()?
+                .parse::<AwgChannelDisplay>()
+                .context(ParseAwgChannelDisplaySnafu)?
                 .into()
         },
         mode: {
             let mode = io.send_with_output(b":FUNC?", buf).await?;
-            from_utf8(mode)?.trim().parse()?
+            from_utf8(mode)?.trim().parse().context(ParseAwgModeSnafu)?
         },
         frequency: {
             let freq = io.send_with_output(b":FUNC:FREQ?", buf).await?;
             // BUG: frequency readout is micro-Hz for some reason
-            Frequency(from_utf8(freq)?.trim().parse::<f64>()? / 1e6)
+            Frequency(
+                from_utf8(freq)?
+                    .trim()
+                    .parse::<f64>()
+                    .context(ParseFrequencySnafu)?
+                    / 1e6,
+            )
         },
         amplitude: {
             let volt = io.send_with_output(b":FUNC:AMPL?", buf).await?;
             // BUG: amplitude readout is millivolt for some reason
-            Voltage(from_utf8(volt)?.trim().parse::<f64>()? / 1e3)
+            Voltage(
+                from_utf8(volt)?
+                    .trim()
+                    .parse::<f64>()
+                    .context(ParseAmplitudeSnafu)?
+                    / 1e3,
+            )
         },
         offset: {
             let volt = io.send_with_output(b":FUNC:OFFS?", buf).await?;
             // BUG: offset readout is millivolt for some reason
-            Voltage(from_utf8(volt)?.trim().parse::<f64>()? / 1e3)
+            Voltage(
+                from_utf8(volt)?
+                    .trim()
+                    .parse::<f64>()
+                    .context(ParseOffsetSnafu)?
+                    / 1e3,
+            )
         },
     })
 }
@@ -664,7 +683,7 @@ pub enum RunError {
     IoOpen {
         source: WindowsError,
     },
-    #[snafu(transparent)]
+    #[snafu(context(false))]
     SendCommand {
         source: CommandIoError,
     },
@@ -673,15 +692,15 @@ pub enum RunError {
         source: AcquireMeasurementError,
         channel: Channel,
     },
-    #[snafu(transparent)]
+    #[snafu(context(false))]
     AcquireSignalData {
         source: AcquireSignalDataError,
     },
-    #[snafu(transparent)]
+    #[snafu(context(false))]
     ReadAwgConfig {
         source: ReadAwgConfigError,
     },
-    #[snafu(transparent)]
+    #[snafu(context(false))]
     SetAwgConfig {
         source: SetAwgConfigError,
     },
@@ -768,13 +787,28 @@ pub enum AcquireSignalDataError {
 #[derive(Debug, Snafu)]
 pub enum ReadAwgConfigError {
     #[snafu(context(false))]
-    Io { source: IoError },
+    Io {
+        source: IoError,
+    },
     #[snafu(context(false))]
-    Utf8 { source: Utf8Error },
-    #[snafu(context(false))]
-    Float { source: std::num::ParseFloatError },
-    #[snafu(context(false))]
-    Strum { source: strum::ParseError },
+    Utf8 {
+        source: Utf8Error,
+    },
+    ParseFrequency {
+        source: std::num::ParseFloatError,
+    },
+    ParseAmplitude {
+        source: std::num::ParseFloatError,
+    },
+    ParseOffset {
+        source: std::num::ParseFloatError,
+    },
+    ParseAwgChannelDisplay {
+        source: strum::ParseError,
+    },
+    ParseAwgMode {
+        source: strum::ParseError,
+    },
 }
 
 #[derive(Debug, Snafu)]
