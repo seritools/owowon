@@ -82,7 +82,10 @@ impl FromStr for Voltage {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.strip_suffix(['v', 'V']).ok_or("not a voltage")?;
+
+        // necessary _sometimes_ (e.g HDS272S, see issue #6)
         let s = s.trim_ascii();
+
         Ok(Self(f64::parse_scaled(s).ok_or("invalid voltage")?))
     }
 }

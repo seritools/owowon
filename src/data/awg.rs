@@ -4,7 +4,8 @@ use strum::{Display, EnumCount, EnumIter, EnumString};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumString, EnumIter, EnumCount, Display)]
 pub enum AwgMode {
     #[default]
-    #[strum(serialize = "SINE")]
+    // different firmware versions use different capitalization
+    #[strum(serialize = "SINE", serialize = "SINe")]
     Sine,
     #[strum(serialize = "SQUare")]
     Square,
