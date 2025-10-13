@@ -138,11 +138,11 @@ pub struct TriggerItems {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Display)]
 pub enum TriggerEdge {
     #[default]
-    #[serde(rename = "RISE")]
-    #[strum(serialize = "RISE")]
+    #[serde(rename = "RISE", alias = "RISe")]
+    #[strum(serialize = "RISE", serialize = "RISe")]
     Rising,
-    #[serde(rename = "FALL")]
-    #[strum(serialize = "FALL")]
+    #[serde(rename = "FALL", alias = "FALl")]
+    #[strum(serialize = "FALL", serialize = "FALl")]
     Falling,
 }
 
@@ -240,7 +240,7 @@ pub enum TriggerCoupling {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Display)]
 pub enum TriggerSweep {
     #[default]
-    #[serde(rename = "AUTO")]
+    #[serde(rename = "AUTo", alias = "AUTO")]
     Auto,
     #[serde(rename = "NORMal")]
     Normal,
