@@ -102,7 +102,9 @@ fn prep_channel_data(data: &[u8]) -> PlotPoints {
     }
 
     let vec = if data.len() != SAMPLES {
-        data.array_chunks::<2>()
+        data.as_chunks::<2>()
+            .0
+            .iter()
             .copied()
             .enumerate()
             .map(two)
@@ -121,6 +123,7 @@ fn prep_channel_data(data: &[u8]) -> PlotPoints {
 }
 
 fn const_grid_lines(grid_input: GridInput) -> Vec<GridMark> {
+    #[allow(clippy::neg_multiply)]
     const GRID_LINES: [f64; 11] = [
         GRID_DIV_SIZE * -5.0,
         GRID_DIV_SIZE * -4.0,
