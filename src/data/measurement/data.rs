@@ -12,7 +12,6 @@ use std::str::FromStr;
 // FTime: Fall time: FT=32.00ns
 // PWIDth: Peak width: PW=1000.0us
 // NWIDth: Trough width: NW=1.500ms
-// SQUAresum: RMS: RMS=50.21mV
 
 macro_rules! decl_measurement {
     ($name:ident, $prefix:expr, $unit:literal) => {
@@ -66,4 +65,3 @@ decl_measurement!(RiseTime, "RT", "s");
 // decl_measurement!(FallTime, "FT", "s"); // slightly buggy
 decl_measurement!(PeakWidth, "PW", "s");
 decl_measurement!(TroughWidth, "NW", "s");
-decl_measurement!(Rms, "RMS", "V");

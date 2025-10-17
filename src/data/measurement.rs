@@ -14,13 +14,12 @@ pub struct Measurements {
     pub period: Period,
     pub rise_time: RiseTime,
     pub peak_width: PeakWidth,
-    pub rms: Rms,
     // frequency is derived from period
     // trough width is derived from peak width
 }
 
 impl Measurements {
-    pub const MEASUREMENT_COUNT: usize = 9;
+    pub const MEASUREMENT_COUNT: usize = 8;
 
     pub fn with_parsed(&mut self, buf: &str) {
         if let Ok(peak_to_peak) = buf.parse() {
@@ -40,9 +39,6 @@ impl Measurements {
         }
         if let Ok(peak_width) = buf.parse() {
             self.peak_width = peak_width;
-        }
-        if let Ok(rms) = buf.parse() {
-            self.rms = rms;
         }
     }
 
@@ -66,12 +62,13 @@ impl Measurements {
             .to_string(),
         );
 
-        out.push(self.rms.to_string());
         out.push(self.average.to_string());
         out
     }
 
     pub fn channel_to_measurement_commands(ch: Channel) -> &'static [&'static [u8]] {
+        // :MEASuremen (older FW)
+        // :MEASurement (newer FW)
         if ch == Channel::Ch1 {
             &[
                 b":MEAS:CH1:PKPK?",
@@ -80,7 +77,6 @@ impl Measurements {
                 b":MEAS:CH1:PER?",
                 b":MEAS:CH1:RT?",
                 b":MEAS:CH1:PWID?",
-                b":MEAS:CH1:SQUA?",
             ]
         } else {
             &[
@@ -90,7 +86,6 @@ impl Measurements {
                 b":MEAS:CH2:PER?",
                 b":MEAS:CH2:RT?",
                 b":MEAS:CH2:PWID?",
-                b":MEAS:CH2:SQUA?",
             ]
         }
     }

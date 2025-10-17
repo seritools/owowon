@@ -493,7 +493,9 @@ async fn send_command(cmd: OscilloscopeCommand, io: &mut Io) -> Result<(), RunEr
                 .context(SetAcquisitionDepthSnafu)?;
         }
         OscilloscopeCommand::Auto => {
-            io.send(b":AUToset .").await.context(AutoSnafu)?;
+            // :AUToset (older FW)
+            // :AUToseton (newer FW)
+            io.send(b":AUT .").await.context(AutoSnafu)?;
         }
     }
 
