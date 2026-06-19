@@ -244,7 +244,7 @@ pub enum TriggerSweep {
     Auto,
     #[serde(rename = "NORMal")]
     Normal,
-    #[serde(rename = "SINGlE")]
+    #[serde(rename = "SINGle", alias = "SINGlE")]
     Single,
 }
 
